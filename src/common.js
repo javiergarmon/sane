@@ -25,6 +25,7 @@ exports.assignOptions = function(watcher, opts) {
   opts = opts || {};
   watcher.globs = opts.glob || [];
   watcher.dot = opts.dot || false;
+  watcher.watchmanPath = opts.watchmanPath || '';
   if (!Array.isArray(watcher.globs)) {
     watcher.globs = [watcher.globs];
   }

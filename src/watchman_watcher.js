@@ -53,7 +53,8 @@ WatchmanWatcher.prototype.init = function() {
   }
 
   var self = this;
-  this.client = new watchman.Client();
+
+  this.client = new watchman.Client({ watchmanBinaryPath : this.watchmanPath });
   this.client.on('error', function(error) {
     self.emit('error', error);
   });
