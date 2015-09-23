@@ -2,7 +2,7 @@
 
 var fs = require('fs');
 var path = require('path');
-var walker = require('walker');
+var walker = require( __dirname + '/../../../node/readdir' );//require('walker');
 var common = require('./common');
 var platform = require('os').platform();
 var EventEmitter = require('events').EventEmitter;
@@ -15,6 +15,7 @@ var DEFAULT_DELAY = common.DEFAULT_DELAY;
 var CHANGE_EVENT = common.CHANGE_EVENT;
 var DELETE_EVENT = common.DELETE_EVENT;
 var ADD_EVENT = common.ADD_EVENT;
+var WATCHING_EVENT = 'watching';
 var ALL_EVENT = common.ALL_EVENT;
 
 /**
@@ -83,6 +84,8 @@ NodeWatcher.prototype.register = function(filepath) {
 
   var filename = path.basename(filepath);
   this.dirRegistery[dir][filename] = true;
+
+  this.emitEvent(WATCHING_EVENT, relativePath);
 
   return true;
 };
@@ -325,16 +328,27 @@ NodeWatcher.prototype.emitEvent = function(type, file, stat) {
  */
 
 function recReaddir(dir, dirCallback, fileCallback, endCallback) {
-  walker(dir)
-    .on('dir', normalizeProxy(dirCallback))
-    .on('file', normalizeProxy(fileCallback))
-    .on('end', function() {
-      if (platform === 'win32') {
-        setTimeout(endCallback, 1000);
-      } else {
-        endCallback();
+
+  dirCallback  = normalizeProxy( dirCallback );
+  fileCallback = normalizeProxy( fileCallback );
+  walker(
+
+    dir,
+    function( path, stat ){
+
+      if( stat.isDirectory() ){
+        dirCallback( path );
+      }else if( stat.isFile() ){
+        fileCallback( path );
       }
-    });
+
+    },
+    function(){
+      endCallback();
+    }
+
+  );
+
 }
 
 /**
