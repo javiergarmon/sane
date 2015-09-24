@@ -71,7 +71,7 @@ NodeWatcher.prototype.__proto__ = EventEmitter.prototype;
  * @private
  */
 
-NodeWatcher.prototype.register = function(filepath) {
+NodeWatcher.prototype.register = function(filepath, added) {
   var relativePath = path.relative(this.root, filepath);
   if (!common.isFileIncluded(this.globs, this.dot, relativePath)) {
     return false;
@@ -85,7 +85,9 @@ NodeWatcher.prototype.register = function(filepath) {
   var filename = path.basename(filepath);
   this.dirRegistery[dir][filename] = true;
 
-  this.emitEvent(WATCHING_EVENT, relativePath);
+  if(!added){
+    this.emitEvent(WATCHING_EVENT, relativePath);
+  }
 
   return true;
 };
@@ -139,7 +141,7 @@ NodeWatcher.prototype.registered = function(fullpath) {
  * @private
  */
 
-NodeWatcher.prototype.watchdir = function(dir) {
+NodeWatcher.prototype.watchdir = function(dir, added) {
   if (this.watched[dir]) {
     return;
   }
@@ -161,7 +163,7 @@ NodeWatcher.prototype.watchdir = function(dir) {
   }
 
   if (this.root !== dir) {
-    this.register(dir);
+    this.register(dir, added);
   }
 };
 
@@ -278,7 +280,7 @@ NodeWatcher.prototype.processChange = function(dir, event, file) {
     } else if (!error && stat.isDirectory()) {
       // win32 emits usless change events on dirs.
       if (event !== 'change') {
-        this.watchdir(fullPath);
+        this.watchdir(fullPath, true);
         this.emitEvent(ADD_EVENT, relativePath, stat);
       }
     } else {
@@ -293,7 +295,7 @@ NodeWatcher.prototype.processChange = function(dir, event, file) {
       } else if (registered) {
         this.emitEvent(CHANGE_EVENT, relativePath, stat);
       } else {
-        if (this.register(fullPath)) {
+        if (this.register(fullPath, true)) {
           this.emitEvent(ADD_EVENT, relativePath, stat);
         }
       }
