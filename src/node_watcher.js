@@ -345,8 +345,8 @@ function recReaddir(dir, dirCallback, fileCallback, endCallback) {
       }
 
     },
-    function(){
-      endCallback();
+    function( error, total ){
+      endCallback( total );
     }
 
   );
