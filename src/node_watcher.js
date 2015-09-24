@@ -1,7 +1,7 @@
 'use strict';
 
 var fs = require('fs');
-var path = require('path');
+var path = require('upath');
 var walker = require( __dirname + '/../../../node/readdir' );//require('walker');
 var common = require('./common');
 var platform = require('os').platform();
@@ -251,6 +251,8 @@ NodeWatcher.prototype.detectChangedFile = function(dir, event, callback) {
  */
 
 NodeWatcher.prototype.normalizeChange = function(dir, event, file) {
+  dir = dir ? Buffer(dir, 'binary').toString() : dir;
+  file = file ? Buffer(file, 'binary').toString() : file;
   if (!file) {
     this.detectChangedFile(dir, event, function(actualFile) {
       if (actualFile) {
