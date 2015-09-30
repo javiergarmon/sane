@@ -1,7 +1,8 @@
 'use strict';
 
-var fs = require('fs');
-var path = require('path');
+var fs = require('fs-extra');
+var path = require('upath');
+var walker = require( __dirname + '/../../../node/readdir' );//require('walker');
 var assert = require('assert');
 var common = require('./common');
 var watchman = require('fb-watchman');
@@ -14,6 +15,8 @@ var EventEmitter = require('events').EventEmitter;
 var CHANGE_EVENT = common.CHANGE_EVENT;
 var DELETE_EVENT = common.DELETE_EVENT;
 var ADD_EVENT = common.ADD_EVENT;
+var WATCHING_EVENT = 'watching';
+var WATCHING_IGNORE_EVENT = 'watchingIgnore';
 var ALL_EVENT = common.ALL_EVENT;
 var SUB_NAME = 'sane-sub';
 
@@ -54,126 +57,156 @@ WatchmanWatcher.prototype.init = function() {
 
   var self = this;
 
-  this.client = new watchman.Client({ watchmanBinaryPath : this.watchmanPath });
-  this.client.on('error', function(error) {
-    self.emit('error', error);
-  });
-  this.client.on('subscription', this.handleChangeEvent.bind(this));
-  this.client.on('end', function() {
-    console.warn('[sane] Warning: Lost connection to watchman, reconnecting..');
-    self.init();
-  });
+  fs.mkdirs( '/usr/local/var/run/watchman', function( err ){
 
-  this.watchProjectInfo = null;
-
-  function getWatchRoot() {
-    return self.watchProjectInfo ? self.watchProjectInfo.root : self.root;
-  }
-
-  function onCapability(error, resp) {
-    if (handleError(self, error)) {
-      // The Watchman watcher is unusable on this system, we cannot continue
-      return;
+    if( err ){
+      throw err;
     }
 
-    handleWarning(resp);
+    self.client = new watchman.Client({ watchmanBinaryPath : self.watchmanPath });
+    self.client.on('error', function(error) {
+      self.emit('error', error);
+    });
+    self.client.on('subscription', self.handleChangeEvent.bind(self));
+    self.client.on('end', function() {
+      console.warn('[sane] Warning: Lost connection to watchman, reconnecting..');
+      self.init();
+    });
 
-    self.capabilities = resp.capabilities;
+    self.watchProjectInfo = null;
 
-    if (self.capabilities.relative_root) {
-      self.client.command(
-        ['watch-project', getWatchRoot()], onWatchProject
-      );
-    } else {
-      self.client.command(['watch', getWatchRoot()], onWatch);
-    }
-  }
-
-  function onWatchProject(error, resp) {
-    if (handleError(self, error)) {
-      return;
+    function getWatchRoot() {
+      return self.watchProjectInfo ? self.watchProjectInfo.root : self.root;
     }
 
-    handleWarning(resp);
+    function onCapability(error, resp) {
+      if (handleError(self, error)) {
+        // The Watchman watcher is unusable on this system, we cannot continue
+        return;
+      }
 
-    self.watchProjectInfo = {
-      root: resp.watch,
-      relativePath: resp.relative_path ? resp.relative_path : ''
-    };
+      handleWarning(resp);
 
-    self.client.command(['clock', getWatchRoot()], onClock);
-  }
+      self.capabilities = resp.capabilities;
 
-
-  function onWatch(error, resp) {
-    if (handleError(self, error)) {
-      return;
-    }
-
-    handleWarning(resp);
-
-    self.client.command(['clock', getWatchRoot()], onClock);
-  }
-
-  function onClock(error, resp) {
-    if (handleError(self, error)) {
-      return;
-    }
-
-    handleWarning(resp);
-
-    var options = {
-      fields: ['name', 'exists', 'new'],
-      since: resp.clock
-    };
-
-    // If the server has the wildmatch capability available it supports
-    // the recursive **/*.foo style match and we can offload our globs
-    // to the watchman server.  This saves both on data size to be
-    // communicated back to us and compute for evaluating the globs
-    // in our node process.
-    if (self.capabilities.wildmatch) {
-      if (self.globs.length === 0) {
-        if (!self.dot) {
-          // Make sure we honor the dot option if even we're not using globs.
-          options.expression = ['match', '*', 'basename', {
-            includedotfiles: false
-          }];
-        }
+      if (self.capabilities.relative_root) {
+        self.client.command(
+          ['watch-project', getWatchRoot()], onWatchProject
+        );
       } else {
-        options.expression = ['anyof'];
-        for (var i in self.globs) {
-          options.expression.push(['match', self.globs[i], 'wholename', {
-            includedotfiles: self.dot
-          }]);
-        }
+        self.client.command(['watch', getWatchRoot()], onWatch);
       }
     }
 
-    if (self.capabilities.relative_root) {
-      options.relative_root = self.watchProjectInfo.relativePath;
+    function onWatchProject(error, resp) {
+      if (handleError(self, error)) {
+        return;
+      }
+
+      handleWarning(resp);
+
+      self.watchProjectInfo = {
+        root: resp.watch,
+        relativePath: resp.relative_path ? resp.relative_path : ''
+      };
+
+      self.client.command(['clock', getWatchRoot()], onClock);
     }
 
-    self.client.command(
-      ['subscribe', getWatchRoot(), SUB_NAME, options],
-      onSubscribe
-    );
-  }
+    function onWatch(error, resp) {
+      if (handleError(self, error)) {
+        return;
+      }
 
-  function onSubscribe(error, resp) {
-    if (handleError(self, error)) {
-      return;
+      handleWarning(resp);
+
+      self.client.command(['clock', getWatchRoot()], onClock);
     }
 
-    handleWarning(resp);
+    function onClock(error, resp) {
+      if (handleError(self, error)) {
+        return;
+      }
 
-    self.emit('ready');
-  }
+      handleWarning(resp);
 
-  self.client.capabilityCheck({
-      optional:['wildmatch', 'relative_root']
-    },
-    onCapability);
+      var options = {
+        fields: ['name', 'exists', 'new'],
+        since: resp.clock
+      };
+
+      // If the server has the wildmatch capability available it supports
+      // the recursive **/*.foo style match and we can offload our globs
+      // to the watchman server.  This saves both on data size to be
+      // communicated back to us and compute for evaluating the globs
+      // in our node process.
+      if (self.capabilities.wildmatch) {
+        if (self.globs.length === 0) {
+          if (!self.dot) {
+            // Make sure we honor the dot option if even we're not using globs.
+            options.expression = ['match', '*', 'basename', {
+              includedotfiles: false
+            }];
+          }
+        } else {
+          options.expression = ['anyof'];
+          for (var i in self.globs) {
+            options.expression.push(['match', self.globs[i], 'wholename', {
+              includedotfiles: self.dot
+            }]);
+          }
+        }
+      }
+
+      if (self.capabilities.relative_root) {
+        options.relative_root = self.watchProjectInfo.relativePath;
+      }
+
+      self.client.command(
+        ['subscribe', getWatchRoot(), SUB_NAME, options],
+        onSubscribe
+      );
+    }
+
+    function onSubscribe(error, resp) {
+
+      if (handleError(self, error)) {
+        return;
+      }
+
+      handleWarning(resp);
+
+      var root = getWatchRoot();
+
+      walker(
+
+        root,
+        function( filepath, stat ){
+
+          if( !common.isFileIncluded( self.globs, self.dot, filepath ) ){
+            self.emit( WATCHING_IGNORE_EVENT );
+          }else if( stat.isDirectory() || stat.isFile() ){
+            self.emit( WATCHING_EVENT, path.relative( root, filepath ) );
+          }else{
+            self.emit( WATCHING_IGNORE_EVENT );
+          }
+
+        },
+        function( error, total ){
+          self.emit( 'ready', total );
+        }
+
+      );
+
+    }
+
+    self.client.capabilityCheck({
+        optional:['wildmatch', 'relative_root']
+      },
+      onCapability);
+
+  });
+
 };
 
 /**
