@@ -16,6 +16,7 @@ var CHANGE_EVENT = common.CHANGE_EVENT;
 var DELETE_EVENT = common.DELETE_EVENT;
 var ADD_EVENT = common.ADD_EVENT;
 var WATCHING_EVENT = 'watching';
+var WATCHING_IGNORE_EVENT = 'watchingIgnore';
 var ALL_EVENT = common.ALL_EVENT;
 
 /**
@@ -48,7 +49,8 @@ function NodeWatcher(dir, opts) {
     this.root,
     this.watchdir,
     this.register,
-    this.emit.bind(this, 'ready')
+    this.emit.bind(this, 'ready'),
+    this.emit.bind(this, WATCHING_IGNORE_EVENT)
   );
 }
 
@@ -74,6 +76,9 @@ NodeWatcher.prototype.__proto__ = EventEmitter.prototype;
 NodeWatcher.prototype.register = function(filepath, added) {
   var relativePath = path.relative(this.root, filepath);
   if (!common.isFileIncluded(this.globs, this.dot, relativePath)) {
+    if(!added){
+      this.emitEvent( WATCHING_IGNORE_EVENT, relativePath );
+    }
     return false;
   }
 
@@ -331,9 +336,9 @@ NodeWatcher.prototype.emitEvent = function(type, file, stat) {
  * @private
  */
 
-function recReaddir(dir, dirCallback, fileCallback, endCallback) {
+function recReaddir(dir, dirCallback, fileCallback, endCallback, ignoreCallback) {
 
-  dirCallback  = normalizeProxy( dirCallback );
+  dirCallback = normalizeProxy( dirCallback );
   fileCallback = normalizeProxy( fileCallback );
   walker(
 
@@ -344,6 +349,8 @@ function recReaddir(dir, dirCallback, fileCallback, endCallback) {
         dirCallback( path );
       }else if( stat.isFile() ){
         fileCallback( path );
+      }else{
+        ignoreCallback();
       }
 
     },
