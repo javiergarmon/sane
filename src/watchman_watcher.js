@@ -57,10 +57,10 @@ WatchmanWatcher.prototype.init = function() {
 
   var self = this;
 
-  fs.mkdirs( '/usr/local/var/run/watchman', function( err ){
+  ensureDir( function( error ){
 
-    if( err ){
-      throw err;
+    if( error ){
+      throw error;
     }
 
     self.client = new watchman.Client({ watchmanBinaryPath : self.watchmanPath });
@@ -338,4 +338,29 @@ function handleWarning(resp) {
   } else {
     return false;
   }
+}
+
+function ensureDir( callback ){
+
+  fs.mkdirs( '/usr/local/var/run/watchman', function( err ){
+
+    if( !err ){
+      return callback();
+    }
+
+    var sudoFn = require('sudo-fn');
+
+    sudoFn.setName('Inevio Sync');
+
+    sudoFn.call({
+
+      module: __dirname + '/../../fs-extra',
+      function: 'mkdirs',
+      params: ['/usr/local/var/run/watchman'],
+      type: 'node-callback'
+
+    }, callback );
+
+  });
+
 }
