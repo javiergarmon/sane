@@ -161,9 +161,9 @@ NodeWatcher.prototype.watchdir = function(dir, added) {
   // Workaround Windows node issue #4337.
   if (platform === 'win32') {
     watcher.on('error', function(error) {
-      if (error.code !== 'EPERM') {
+      /*if (error.code !== 'EPERM') {
         throw error;
-      }
+      }*/
     });
   }
 
