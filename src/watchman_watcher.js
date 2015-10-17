@@ -183,9 +183,9 @@ WatchmanWatcher.prototype.init = function() {
         root,
         function( filepath, stat ){
 
-          if( !common.isFileIncluded( self.globs, self.dot, filepath ) ){
+          if( stat.isHidden || !common.isFileIncluded( self.globs, self.dot, filepath ) ){
             self.emit( WATCHING_IGNORE_EVENT );
-          }else if( stat.isDirectory() || stat.isFile() ){
+          }else if( stat.isDirectory || stat.isFile ){
             self.emit( WATCHING_EVENT, path.relative( root, filepath ) );
           }else{
             self.emit( WATCHING_IGNORE_EVENT );
