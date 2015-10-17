@@ -345,9 +345,11 @@ function recReaddir(dir, dirCallback, fileCallback, endCallback, ignoreCallback)
     dir,
     function( path, stat ){
 
-      if( stat.isDirectory() ){
+      if( stat.isHidden ){
+        ignoreCallback();
+      }else if( stat.isDirectory ){
         dirCallback( path );
-      }else if( stat.isFile() ){
+      }else if( stat.isFile ){
         fileCallback( path );
       }else{
         ignoreCallback();
