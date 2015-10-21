@@ -3,6 +3,7 @@
 var fs = require('fs');
 var path = require('upath');
 var walker = require( __dirname + '/../../../node/readdir' );//require('walker');
+var advancedStat = require( __dirname + '/../../../node/advancedStat' );
 var common = require('./common');
 var platform = require('os').platform();
 var EventEmitter = require('events').EventEmitter;
@@ -281,10 +282,10 @@ NodeWatcher.prototype.normalizeChange = function(dir, event, file) {
 NodeWatcher.prototype.processChange = function(dir, event, file) {
   var fullPath = path.join(dir, file);
   var relativePath = path.join(path.relative(this.root, dir), file);
-  fs.lstat(fullPath, function(error, stat) {
+  advancedStat(fullPath, function(error, stat) {
     if (error && error.code !== 'ENOENT') {
       this.emit('error', error);
-    } else if (!error && stat.isDirectory()) {
+    } else if (!error && stat.isDirectory) {
       // win32 emits usless change events on dirs.
       if (event !== 'change') {
         this.watchdir(fullPath, true);
@@ -292,7 +293,7 @@ NodeWatcher.prototype.processChange = function(dir, event, file) {
       }
     } else {
       var registered = this.registered(fullPath);
-      if (error && error.code === 'ENOENT') {
+      if (error && error.code === 'ENOENT' || stat.isHidden ) {
         this.unregister(fullPath);
         this.stopWatching(fullPath);
         this.unregisterDir(fullPath);
@@ -302,7 +303,11 @@ NodeWatcher.prototype.processChange = function(dir, event, file) {
       } else if (registered) {
         this.emitEvent(CHANGE_EVENT, relativePath, stat);
       } else {
-        if (this.register(fullPath, true)) {
+        if (
+          !error &&
+          !stat.isHidden &&
+          this.register(fullPath, true)
+        ) {
           this.emitEvent(ADD_EVENT, relativePath, stat);
         }
       }
