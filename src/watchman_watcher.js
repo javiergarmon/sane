@@ -2,7 +2,7 @@
 
 var fs = require('fs-extra');
 var path = require('upath');
-var walker = require( __dirname + '/../../../node/readdir' );//require('walker');
+var walker = require( __dirname + '/../../../node/readdir' );
 var assert = require('assert');
 var common = require('./common');
 var watchman = require('fb-watchman');
@@ -183,9 +183,9 @@ WatchmanWatcher.prototype.init = function() {
         root,
         function( filepath, stat ){
 
-          if( !common.isFileIncluded( self.globs, self.dot, filepath ) ){
+          if( stat.isHidden || !common.isFileIncluded( self.globs, self.dot, filepath ) ){
             self.emit( WATCHING_IGNORE_EVENT );
-          }else if( stat.isDirectory() || stat.isFile() ){
+          }else if( stat.isDirectory || stat.isFile ){
             self.emit( WATCHING_EVENT, path.relative( root, filepath ) );
           }else{
             self.emit( WATCHING_IGNORE_EVENT );
@@ -193,7 +193,21 @@ WatchmanWatcher.prototype.init = function() {
 
         },
         function( error, total ){
+
+          if( error ){
+
+            if( typeof log !== 'undefined' ){
+              log.log( error );
+            }else{
+              console.log( error );
+            }
+
+            process.exit();
+
+          }
+
           self.emit( 'ready', total );
+
         }
 
       );

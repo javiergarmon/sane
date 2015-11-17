@@ -2,8 +2,8 @@
 
 var fs = require('fs');
 var path = require('upath');
-var walker = require( __dirname + '/../../../node/readdir' );//require('walker');
 var advancedStat = require( __dirname + '/../../../node/advancedStat' );
+var walker = require( __dirname + '/../../../node/readdir' );
 var common = require('./common');
 var platform = require('os').platform();
 var EventEmitter = require('events').EventEmitter;
@@ -362,6 +362,19 @@ function recReaddir(dir, dirCallback, fileCallback, endCallback, ignoreCallback)
 
     },
     function( error, total ){
+
+      if( error ){
+
+        if( typeof log !== 'undefined' ){
+          log.log( error );
+        }else{
+          console.log( error );
+        }
+
+        process.exit();
+
+      }
+
       endCallback( total );
     }
 
