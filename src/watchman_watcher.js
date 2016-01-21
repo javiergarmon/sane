@@ -51,175 +51,168 @@ WatchmanWatcher.prototype.__proto__ = EventEmitter.prototype;
  */
 
 WatchmanWatcher.prototype.init = function() {
+
   if (this.client) {
     this.client.removeAllListeners();
   }
 
   var self = this;
 
-  ensureDir( function( error ){
-
-    if( error ){
-      throw error;
-    }
-
-    self.client = new watchman.Client({ watchmanBinaryPath : self.watchmanPath });
-    self.client.on('error', function(error) {
-      self.emit('error', error);
-    });
-    self.client.on('subscription', self.handleChangeEvent.bind(self));
-    self.client.on('end', function() {
-      console.warn('[sane] Warning: Lost connection to watchman, reconnecting..');
-      self.init();
-    });
-
-    self.watchProjectInfo = null;
-
-    function getWatchRoot() {
-      return self.watchProjectInfo ? self.watchProjectInfo.root : self.root;
-    }
-
-    function onCapability(error, resp) {
-      if (handleError(self, error)) {
-        // The Watchman watcher is unusable on this system, we cannot continue
-        return;
-      }
-
-      handleWarning(resp);
-
-      self.capabilities = resp.capabilities;
-
-      if (self.capabilities.relative_root) {
-        self.client.command(
-          ['watch-project', getWatchRoot()], onWatchProject
-        );
-      } else {
-        self.client.command(['watch', getWatchRoot()], onWatch);
-      }
-    }
-
-    function onWatchProject(error, resp) {
-      if (handleError(self, error)) {
-        return;
-      }
-
-      handleWarning(resp);
-
-      self.watchProjectInfo = {
-        root: resp.watch,
-        relativePath: resp.relative_path ? resp.relative_path : ''
-      };
-
-      self.client.command(['clock', getWatchRoot()], onClock);
-    }
-
-    function onWatch(error, resp) {
-      if (handleError(self, error)) {
-        return;
-      }
-
-      handleWarning(resp);
-
-      self.client.command(['clock', getWatchRoot()], onClock);
-    }
-
-    function onClock(error, resp) {
-      if (handleError(self, error)) {
-        return;
-      }
-
-      handleWarning(resp);
-
-      var options = {
-        fields: ['name', 'exists', 'new'],
-        since: resp.clock
-      };
-
-      // If the server has the wildmatch capability available it supports
-      // the recursive **/*.foo style match and we can offload our globs
-      // to the watchman server.  This saves both on data size to be
-      // communicated back to us and compute for evaluating the globs
-      // in our node process.
-      if (self.capabilities.wildmatch) {
-        if (self.globs.length === 0) {
-          if (!self.dot) {
-            // Make sure we honor the dot option if even we're not using globs.
-            options.expression = ['match', '*', 'basename', {
-              includedotfiles: false
-            }];
-          }
-        } else {
-          options.expression = ['anyof'];
-          for (var i in self.globs) {
-            options.expression.push(['match', self.globs[i], 'wholename', {
-              includedotfiles: self.dot
-            }]);
-          }
-        }
-      }
-
-      if (self.capabilities.relative_root) {
-        options.relative_root = self.watchProjectInfo.relativePath;
-      }
-
-      self.client.command(
-        ['subscribe', getWatchRoot(), SUB_NAME, options],
-        onSubscribe
-      );
-    }
-
-    function onSubscribe(error, resp) {
-
-      if (handleError(self, error)) {
-        return;
-      }
-
-      handleWarning(resp);
-
-      var root = getWatchRoot();
-
-      walker(
-
-        root,
-        function( filepath, stat ){
-
-          if( stat.isHidden || !common.isFileIncluded( self.globs, self.dot, filepath ) ){
-            self.emit( WATCHING_IGNORE_EVENT );
-          }else if( stat.isDirectory || stat.isFile ){
-            self.emit( WATCHING_EVENT, path.relative( root, filepath ) );
-          }else{
-            self.emit( WATCHING_IGNORE_EVENT );
-          }
-
-        },
-        function( error, total ){
-
-          if( error ){
-
-            if( typeof log !== 'undefined' ){
-              log.log( error );
-            }else{
-              console.log( error );
-            }
-
-            process.exit();
-
-          }
-
-          self.emit( 'ready', total );
-
-        }
-
-      );
-
-    }
-
-    self.client.capabilityCheck({
-        optional:['wildmatch', 'relative_root']
-      },
-      onCapability);
-
+  self.client = new watchman.Client({ watchmanBinaryPath : self.watchmanPath });
+  self.client.on('error', function(error) {
+    self.emit('error', error);
   });
+  self.client.on('subscription', self.handleChangeEvent.bind(self));
+  self.client.on('end', function() {
+    console.warn('[sane] Warning: Lost connection to watchman, reconnecting..');
+    self.init();
+  });
+
+  self.watchProjectInfo = null;
+
+  function getWatchRoot() {
+    return self.watchProjectInfo ? self.watchProjectInfo.root : self.root;
+  }
+
+  function onCapability(error, resp) {
+    if (handleError(self, error)) {
+      // The Watchman watcher is unusable on this system, we cannot continue
+      return;
+    }
+
+    handleWarning(resp);
+
+    self.capabilities = resp.capabilities;
+
+    if (self.capabilities.relative_root) {
+      self.client.command(
+        ['watch-project', getWatchRoot()], onWatchProject
+      );
+    } else {
+      self.client.command(['watch', getWatchRoot()], onWatch);
+    }
+  }
+
+  function onWatchProject(error, resp) {
+    if (handleError(self, error)) {
+      return;
+    }
+
+    handleWarning(resp);
+
+    self.watchProjectInfo = {
+      root: resp.watch,
+      relativePath: resp.relative_path ? resp.relative_path : ''
+    };
+
+    self.client.command(['clock', getWatchRoot()], onClock);
+  }
+
+  function onWatch(error, resp) {
+    if (handleError(self, error)) {
+      return;
+    }
+
+    handleWarning(resp);
+
+    self.client.command(['clock', getWatchRoot()], onClock);
+  }
+
+  function onClock(error, resp) {
+    if (handleError(self, error)) {
+      return;
+    }
+
+    handleWarning(resp);
+
+    var options = {
+      fields: ['name', 'exists', 'new'],
+      since: resp.clock
+    };
+
+    // If the server has the wildmatch capability available it supports
+    // the recursive **/*.foo style match and we can offload our globs
+    // to the watchman server.  This saves both on data size to be
+    // communicated back to us and compute for evaluating the globs
+    // in our node process.
+    if (self.capabilities.wildmatch) {
+      if (self.globs.length === 0) {
+        if (!self.dot) {
+          // Make sure we honor the dot option if even we're not using globs.
+          options.expression = ['match', '*', 'basename', {
+            includedotfiles: false
+          }];
+        }
+      } else {
+        options.expression = ['anyof'];
+        for (var i in self.globs) {
+          options.expression.push(['match', self.globs[i], 'wholename', {
+            includedotfiles: self.dot
+          }]);
+        }
+      }
+    }
+
+    if (self.capabilities.relative_root) {
+      options.relative_root = self.watchProjectInfo.relativePath;
+    }
+
+    self.client.command(
+      ['subscribe', getWatchRoot(), SUB_NAME, options],
+      onSubscribe
+    );
+  }
+
+  function onSubscribe(error, resp) {
+
+    if (handleError(self, error)) {
+      return;
+    }
+
+    handleWarning(resp);
+
+    var root = getWatchRoot();
+
+    walker(
+
+      root,
+      function( filepath, stat ){
+
+        if( stat.isHidden || !common.isFileIncluded( self.globs, self.dot, filepath ) ){
+          self.emit( WATCHING_IGNORE_EVENT );
+        }else if( stat.isDirectory || stat.isFile ){
+          self.emit( WATCHING_EVENT, path.relative( root, filepath ) );
+        }else{
+          self.emit( WATCHING_IGNORE_EVENT );
+        }
+
+      },
+      function( error, total ){
+
+        if( error ){
+
+          if( typeof log !== 'undefined' ){
+            log.log( error );
+          }else{
+            console.log( error );
+          }
+
+          process.exit();
+
+        }
+
+        self.emit( 'ready', total );
+
+      }
+
+    );
+
+  }
+
+  self.client.capabilityCheck({
+      optional:['wildmatch', 'relative_root']
+    },
+    onCapability);
 
 };
 
@@ -352,29 +345,4 @@ function handleWarning(resp) {
   } else {
     return false;
   }
-}
-
-function ensureDir( callback ){
-
-  fs.mkdirs( '/usr/local/var/run/watchman', function( err ){
-
-    if( !err ){
-      return callback();
-    }
-
-    var sudoFn = require('sudo-fn');
-
-    sudoFn.setName('Inevio Sync');
-
-    sudoFn.call({
-
-      module: __dirname + '/../../fs-extra',
-      function: 'mkdirs',
-      params: ['/usr/local/var/run/watchman'],
-      type: 'node-callback'
-
-    }, callback );
-
-  });
-
 }
