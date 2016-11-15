@@ -289,7 +289,9 @@ NodeWatcher.prototype.processChange = function(dir, event, file) {
       // win32 emits usless change events on dirs.
       if (event !== 'change') {
         this.watchdir(fullPath, true);
-        this.emitEvent(ADD_EVENT, relativePath, stat);
+        if (common.isFileIncluded(this.globs, this.dot, relativePath)) {
+          this.emitEvent(ADD_EVENT, relativePath, stat);
+        }
       }
     } else {
       var registered = this.registered(fullPath);
