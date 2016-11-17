@@ -257,8 +257,6 @@ NodeWatcher.prototype.detectChangedFile = function(dir, event, callback) {
  */
 
 NodeWatcher.prototype.normalizeChange = function(dir, event, file) {
-  dir = dir ? Buffer(dir, 'binary').toString() : dir;
-  file = file ? Buffer(file, 'binary').toString() : file;
   if (!file) {
     this.detectChangedFile(dir, event, function(actualFile) {
       if (actualFile) {
